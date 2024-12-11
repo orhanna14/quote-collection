@@ -5,38 +5,95 @@
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* quote-collection.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
 }
 
-.card {
-  padding: 2em;
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
-.read-the-docs {
-  color: #888;
+/* Subtle animation for quote cards */
+.quote-card {
+  transition: all 0.3s ease-in-out;
+}
+
+.quote-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* File input custom styling */
+.file-input {
+  @apply file:mr-4 
+         file:rounded-full 
+         file:border-0 
+         file:bg-blue-50 
+         file:px-4 
+         file:py-2 
+         file:text-blue-700 
+         hover:file:bg-blue-100;
+}
+
+/* Gradient text effect */
+.gradient-text {
+  background: linear-gradient(to right, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Fancy delete button */
+.delete-button {
+  @apply transition-all 
+         duration-300 
+         ease-in-out 
+         hover:bg-red-600 
+         hover:scale-105;
+}
+
+/* Subtle border animation on focus */
+.input-focus:focus {
+  @apply border-blue-500 
+         ring-2 
+         ring-blue-200 
+         transition-all 
+         duration-300;
+}
+
+/* Category badge */
+.category-badge {
+  @apply ml-2 
+         px-2 
+         py-0.5 
+         bg-blue-50 
+         text-blue-700 
+         rounded-full 
+         text-xs;
+}
+
+/* Empty state styling */
+.empty-state {
+  @apply text-center 
+         text-gray-500 
+         py-8 
+         bg-gray-50 
+         rounded-lg 
+         border-2 
+         border-dashed 
+         border-gray-200;
 }
