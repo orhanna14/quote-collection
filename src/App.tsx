@@ -5,6 +5,10 @@ import { Input } from './components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
 import './App.css'
 
+const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+const ALLOWED_FILE_TYPES = ['application/json', 'text/csv'];
+const MAX_QUOTES_PER_UPLOAD = 1000;
+
 const QuoteCollection = () => {
   // Initialize state from localStorage or empty array
   const [quotes, setQuotes] = useState(() => {
@@ -93,80 +97,87 @@ const QuoteCollection = () => {
 
   // Bulk upload quotes
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('Upload initiated');
     const files = event.target.files;
     if (!files || files.length === 0) {
-      console.log('No files selected');
       alert('Please select a file to upload');
       return;
     }
 
     const file = files[0];
-    console.log('File selected:', file.name);
+    
+    // File validation
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      alert('Only JSON and CSV files are allowed');
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      alert('File size must be less than 1MB');
+      return;
+    }
+
     const reader = new FileReader();
 
     reader.onload = (e) => {
-      console.log('File read completed');
-      if (!e.target?.result) {
-        console.log('No result from file read');
-        return;
-      }
+      if (!e.target?.result) return;
+      
       try {
-        // Try parsing as JSON first
-        console.log('Attempting to parse JSON');
-        const importedQuotes = JSON.parse(e.target.result as string);
-        console.log('Parsed quotes:', importedQuotes);
-        
-        // Validate quote structure
-        const validQuotes = importedQuotes.map((quote: any) => ({
-          id: Date.now() + Math.random(),
-          text: quote.text || quote.quote,
-          author: quote.author || quote.by || 'Unknown',
-          category: quote.category || '',
-          importedAt: new Date().toISOString()
-        })).filter((quote: { text: any; }) => quote.text);
+        let validQuotes;
+        if (file.type === 'application/json') {
+          const importedQuotes = JSON.parse(e.target.result as string);
+          
+          // Validate array structure
+          if (!Array.isArray(importedQuotes)) {
+            throw new Error('JSON must contain an array of quotes');
+          }
 
-        console.log('Valid quotes to add:', validQuotes);
-        // Add imported quotes to existing collection
+          validQuotes = importedQuotes
+            .slice(0, MAX_QUOTES_PER_UPLOAD)
+            .map((quote: any) => ({
+              id: Date.now() + Math.random(),
+              text: sanitizeInput(quote.text || quote.quote || ''),
+              author: sanitizeInput(quote.author || quote.by || 'Unknown'),
+              category: sanitizeInput(quote.category || ''),
+              importedAt: new Date().toISOString()
+            }))
+            .filter((quote: { text: string; }) => 
+              quote.text.length > 0 && 
+              quote.text.length <= 1000 && 
+              quote.author.length <= 100
+            );
+        } else {
+          const csvQuotes = parseCSV(e.target.result as string);
+          validQuotes = csvQuotes
+            .slice(0, MAX_QUOTES_PER_UPLOAD)
+            .map(quote => ({
+              id: Date.now() + Math.random(),
+              text: sanitizeInput(quote.text || quote.quote || ''),
+              author: sanitizeInput(quote.author || quote.by || 'Unknown'),
+              category: sanitizeInput(quote.category || ''),
+              importedAt: new Date().toISOString()
+            }))
+            .filter(quote => 
+              quote.text.length > 0 && 
+              quote.text.length <= 1000 && 
+              quote.author.length <= 100
+            );
+        }
+
+        if (validQuotes.length === 0) {
+          alert('No valid quotes found in file');
+          return;
+        }
+
         setQuotes(prevQuotes => [...validQuotes, ...prevQuotes]);
         alert(`Successfully imported ${validQuotes.length} quotes`);
-      } catch (jsonError) {
-        console.log('JSON parsing failed, attempting CSV parse');
-        // If JSON parsing fails, try CSV
-        try {
-          const csvText = e.target.result as string;
-          const csvQuotes = parseCSV(csvText);
-          
-          const validQuotes = csvQuotes.map(quote => ({
-            id: Date.now() + Math.random(),
-            text: quote.text || quote.quote,
-            author: quote.author || quote.by || 'Unknown',
-            category: quote.category || '',
-            importedAt: new Date().toISOString()
-          })).filter(quote => quote.text);
-
-          console.log('Valid CSV quotes to add:', validQuotes);
-          setQuotes(prevQuotes => [...validQuotes, ...prevQuotes]);
-          alert(`Successfully imported ${validQuotes.length} quotes`);
-        } catch (csvError) {
-          console.error('CSV parsing failed:', csvError);
-          alert('Unable to parse file. Please use JSON or CSV format.');
-        }
+        
+      } catch (error) {
+        console.error('Error processing file:', error);
+        alert('Error processing file. Please check the format and try again.');
       }
     };
 
-    reader.onerror = (error) => {
-      console.error('Error reading file:', error);
-      alert('Error reading file');
-    };
-
-    try {
-      console.log('Starting file read');
-      reader.readAsText(file);
-    } catch (error) {
-      console.error('Error initiating file read:', error);
-      alert('Error reading file: ' + (error instanceof Error ? error.message : 'Unknown error'));
-    }
+    reader.readAsText(file);
   };
 
   // Simple CSV parsing function
@@ -221,6 +232,15 @@ const QuoteCollection = () => {
     csvLink.click();
     document.body.removeChild(jsonLink);
     document.body.removeChild(csvLink);
+  };
+
+  const sanitizeInput = (input: string): string => {
+    if (typeof input !== 'string') return '';
+    // Remove HTML tags and trim whitespace
+    return input
+      .replace(/<[^>]*>/g, '')
+      .trim()
+      .slice(0, 1000); // Maximum length
   };
 
   return (
