@@ -124,7 +124,9 @@ const QuoteCollection = () => {
   }, [quotes, selectedCategory]);
 
   // Bulk upload quotes
-  const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBulkUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) return; // Early return if no user
+
     const files = event.target.files;
     if (!files || files.length === 0) {
       alert('Please select a file to upload');
@@ -146,7 +148,7 @@ const QuoteCollection = () => {
 
     const reader = new FileReader();
 
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       if (!e.target?.result) return;
       
       try {
@@ -162,13 +164,13 @@ const QuoteCollection = () => {
           validQuotes = importedQuotes
             .slice(0, MAX_QUOTES_PER_UPLOAD)
             .map((quote: any) => ({
-              id: Date.now() + Math.random(),
               text: sanitizeInput(quote.text || quote.quote || ''),
               author: sanitizeInput(quote.author || quote.by || 'Unknown'),
               category: sanitizeInput(quote.category || ''),
-              importedAt: new Date().toISOString()
+              userId: user.uid,
+              createdAt: new Date().toISOString()
             }))
-            .filter((quote: { text: string; }) => 
+            .filter((quote) => 
               quote.text.length > 0 && 
               quote.text.length <= 1000 && 
               quote.author.length <= 100
@@ -178,11 +180,11 @@ const QuoteCollection = () => {
           validQuotes = csvQuotes
             .slice(0, MAX_QUOTES_PER_UPLOAD)
             .map(quote => ({
-              id: Date.now() + Math.random(),
               text: sanitizeInput(quote.text || quote.quote || ''),
               author: sanitizeInput(quote.author || quote.by || 'Unknown'),
               category: sanitizeInput(quote.category || ''),
-              importedAt: new Date().toISOString()
+              userId: user.uid,
+              createdAt: new Date().toISOString()
             }))
             .filter(quote => 
               quote.text.length > 0 && 
@@ -196,8 +198,18 @@ const QuoteCollection = () => {
           return;
         }
 
-        setQuotes(prevQuotes => [...validQuotes, ...prevQuotes]);
-        alert(`Successfully imported ${validQuotes.length} quotes`);
+        // Save quotes to Firebase
+        const savedQuotes = await Promise.all(
+          validQuotes.map(quote => quoteService.addQuote(quote))
+        );
+
+        // Update local state with the newly saved quotes
+        setQuotes(prevQuotes => [...savedQuotes, ...prevQuotes]);
+        
+        // Clear the file input
+        event.target.value = '';
+        
+        alert(`Successfully imported ${savedQuotes.length} quotes`);
         
       } catch (error) {
         console.error('Error processing file:', error);
