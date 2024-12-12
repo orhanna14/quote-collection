@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card"
 import { Input } from './components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
 import { useAuth } from './context/AuthContext';
+import { quoteService, Quote } from './services/quoteService';
 import './QuoteCollection.css'
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
@@ -12,86 +13,106 @@ const MAX_QUOTES_PER_UPLOAD = 1000;
 
 const QuoteCollection = () => {
   const { user, signIn, signOutUser } = useAuth();
-
-
-  // Modify quotes state to be user-specific
-  const [quotes, setQuotes] = useState<Quote[]>(() => {
-    if (!user) return [];
-    const savedQuotes = localStorage.getItem(`quotes_${user.uid}`);
-    return savedQuotes ? JSON.parse(savedQuotes) : [];
-  });
-
+  const [quotes, setQuotes] = useState<Quote[]>([]);
   const [newQuote, setNewQuote] = useState({
     text: '',
     author: '',
-    category: '',
-    id: null
+    category: ''
   });
-
   const [editingQuote, setEditingQuote] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Update useEffect to be user-specific
   useEffect(() => {
-    if (user) {
-      localStorage.setItem(`quotes_${user.uid}`, JSON.stringify(quotes));
-    }
-  }, [quotes, user]);
-
-  // Add or update quote
-  const handleQuoteSubmit = () => {
-    if (newQuote.text && newQuote.author) {
-      if (editingQuote) {
-        // Update existing quote
-        setQuotes(quotes.map(quote => 
-          quote.id === editingQuote.id 
-            ? { ...newQuote, id: editingQuote.id } 
-            : quote
-        ));
-        setEditingQuote(null);
+    const fetchQuotes = async () => {
+      if (user) {
+        try {
+          setIsLoading(true);
+          const fetchedQuotes = await quoteService.getUserQuotes();
+          setQuotes(fetchedQuotes);
+        } catch (error) {
+          console.error("Error fetching quotes:", error);
+        } finally {
+          // Always set loading to false, even if no quotes
+          setIsLoading(false);
+        }
       } else {
-        // Add new quote
-        const quoteToAdd = {
-          ...newQuote,
-          id: Date.now(), // Use timestamp as unique ID
-          createdAt: new Date().toISOString()
-        };
-
-        setQuotes([quoteToAdd, ...quotes]);
+        // If no user, immediately stop loading
+        setIsLoading(false);
       }
-      
-      // Reset form
-      setNewQuote({ 
-        text: '', 
-        author: '', 
-        category: '',
-        id: null 
-      });
-    }
-  };
-
-
-    // Start editing a quote
-    const startEditingQuote = (quote) => {
-      setEditingQuote(quote);
-      setNewQuote({
-        text: quote.text,
-        author: quote.author,
-        category: quote.category,
-        id: quote.id
-      });
     };
 
+    fetchQuotes();
+  }, [user]);
+
+    // Handle quote submission
+    const handleQuoteSubmit = async () => {
+      if (!user) return;
   
+      if (newQuote.text && newQuote.author) {
+        try {
+          if (editingQuote) {
+            // Update existing quote
+            const updatedQuote = await quoteService.updateQuote(editingQuote.id!, {
+              ...newQuote,
+              userId: user.uid
+            });
+            
+            setQuotes(quotes.map(q => 
+              q.id === editingQuote.id ? updatedQuote : q
+            ));
+            setEditingQuote(null);
+          } else {
+            // Add new quote
+            const quoteToAdd = {
+              ...newQuote,
+              userId: user.uid,
+              createdAt: new Date().toISOString()
+            };
+  
+            const addedQuote = await quoteService.addQuote(quoteToAdd);
+            
+            setQuotes([addedQuote, ...quotes]);
+          }
+          
+          // Reset form
+          setNewQuote({ 
+            text: '', 
+            author: '', 
+            category: ''
+          });
+        } catch (error) {
+          console.error("Error submitting quote:", error);
+        }
+      }
+    };
+
+  // Start editing a quote
+  const startEditingQuote = (quote: Quote) => {
+    setEditingQuote(quote);
+    setNewQuote({
+      text: quote.text,
+      author: quote.author,
+      category: quote.category || ''
+    });
+  };
+
   // Delete quote
-  const deleteQuote = (id) => {
-    setQuotes(quotes.filter(quote => quote.id !== id));
+  const deleteQuote = async (id: string) => {
+    try {
+      await quoteService.deleteQuote(id);
+      setQuotes(quotes.filter(quote => quote.id !== id));
+    } catch (error) {
+      console.error("Error deleting quote:", error);
+    }
   };
 
 
   // Get unique categories
   const categories = useMemo(() => {
-    const uniqueCategories = new Set(quotes.map(quote => quote.category).filter(Boolean));
+    const uniqueCategories = new Set(
+      quotes.map(quote => quote.category).filter(Boolean)
+    );
     return ['All', ...Array.from(uniqueCategories)];
   }, [quotes]);
 
@@ -250,6 +271,15 @@ const QuoteCollection = () => {
       .slice(0, 1000); // Maximum length
   };
 
+    // Loading state
+    if (isLoading) {
+      return (
+        <div className="flex justify-center items-center min-h-screen">
+          <p>Loading your quotes...</p>
+        </div>
+      );
+    }
+
     // Add authentication UI elements
     if (!user) {
       return (
@@ -273,11 +303,9 @@ const QuoteCollection = () => {
     <div className="container mx-auto max-w-2xl px-4 py-8 bg-gray-50 min-h-screen">
       <div className="bg-white shadow-lg rounded-xl overflow-hidden">
         <header className="bg-gradient-to-r from-blue-100 to-purple-100 text-white p-6">
-          <div>
           <h1 className="text-3xl font-extrabold tracking-tight gradient-text">Quote Collection</h1>
           <p className="text-blue-500 mt-2">Collect, manage, and cherish your favorite quotes</p>
           <p className="text-gray-600">Welcome, {user.displayName}</p>
-          </div>
           <Button variant="destructive" onClick={signOutUser}>
             Sign Out
           </Button>
@@ -391,13 +419,12 @@ const QuoteCollection = () => {
           </CardContent>
         </Card>
 
-       {/* Quote List */}
-       <div className="p-4 space-y-3">
-          {filteredQuotes.length === 0 ? (
-            <div className="empty-state">
-              {selectedCategory === 'All' 
-                ? 'No quotes yet. Start adding some inspiration!' 
-                : `No quotes in the "${selectedCategory}" category.`}
+        {/* Quote List */}
+        <div className="p-4 space-y-3">
+          {quotes.length === 0 ? (
+            <div className="text-center p-8 bg-white rounded-lg shadow-md">
+              <p className="text-xl mb-4">You haven't added any quotes yet!</p>
+              <p className="text-gray-600 mb-6">Start by adding your first inspiring quote.</p>
             </div>
           ) : (
             filteredQuotes.map((quote) => (
