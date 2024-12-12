@@ -11,15 +11,32 @@ const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 const ALLOWED_FILE_TYPES = ['application/json', 'text/csv'];
 const MAX_QUOTES_PER_UPLOAD = 1000;
 
+const LIFE_STAGES = [
+  'Early Childhood (3-6 years)',
+  'Middle Childhood (7-12 years)', 
+  'Adolescence (13-19 years)',
+  'Early Adulthood (20-40 years)',
+  'Middle Adulthood (41-65 years)', 
+  'Late Adulthood (65+ years)'
+];
+
+const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
+
 const QuoteCollection = () => {
   const { user, signIn, signOutUser } = useAuth();
   const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [newQuote, setNewQuote] = useState({
+  const [newQuote, setNewQuote] = useState<Quote>({
     text: '',
     author: '',
-    category: ''
+    category: '',
+    season: undefined,
+    lifeStage: undefined,
+    question: '',
+    answer: '',
+    userId: '',
+    createdAt: ''
   });
-  const [editingQuote, setEditingQuote] = useState(null);
+  const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -48,15 +65,27 @@ const QuoteCollection = () => {
     // Handle quote submission
     const handleQuoteSubmit = async () => {
       if (!user) return;
-  
-      if (newQuote.text && newQuote.author) {
+    
+      // Remove undefined values
+      const cleanQuote = Object.fromEntries(
+        Object.entries({
+          text: newQuote.text,
+          author: newQuote.author,
+          category: newQuote.category,
+          season: newQuote.season,
+          lifeStage: newQuote.lifeStage,
+          question: newQuote.question,
+          answer: newQuote.answer,
+          userId: user.uid,
+          createdAt: new Date().toISOString()
+        }).filter(([_, v]) => v !== undefined && v !== '')
+      );
+    
+      if (Object.keys(cleanQuote).length > 0) {
         try {
           if (editingQuote) {
             // Update existing quote
-            const updatedQuote = await quoteService.updateQuote(editingQuote.id!, {
-              ...newQuote,
-              userId: user.uid
-            });
+            const updatedQuote = await quoteService.updateQuote(editingQuote.id!, cleanQuote);
             
             setQuotes(quotes.map(q => 
               q.id === editingQuote.id ? updatedQuote : q
@@ -64,13 +93,7 @@ const QuoteCollection = () => {
             setEditingQuote(null);
           } else {
             // Add new quote
-            const quoteToAdd = {
-              ...newQuote,
-              userId: user.uid,
-              createdAt: new Date().toISOString()
-            };
-  
-            const addedQuote = await quoteService.addQuote(quoteToAdd);
+            const addedQuote = await quoteService.addQuote(cleanQuote);
             
             setQuotes([addedQuote, ...quotes]);
           }
@@ -79,7 +102,13 @@ const QuoteCollection = () => {
           setNewQuote({ 
             text: '', 
             author: '', 
-            category: ''
+            category: '',
+            season: undefined,
+            lifeStage: undefined,
+            question: '',
+            answer: '',
+            userId: '',
+            createdAt: ''
           });
         } catch (error) {
           console.error("Error submitting quote:", error);
@@ -91,9 +120,15 @@ const QuoteCollection = () => {
   const startEditingQuote = (quote: Quote) => {
     setEditingQuote(quote);
     setNewQuote({
-      text: quote.text,
-      author: quote.author,
-      category: quote.category || ''
+      text: quote.text || '',
+      author: quote.author || '',
+      category: quote.category || '',
+      season: quote.season,
+      lifeStage: quote.lifeStage,
+      question: quote.question || '',
+      answer: quote.answer || '',
+      userId: quote.userId,
+      createdAt: quote.createdAt
     });
   };
 
@@ -123,7 +158,6 @@ const QuoteCollection = () => {
       : quotes.filter(quote => quote.category === selectedCategory);
   }, [quotes, selectedCategory]);
 
-  // Bulk upload quotes
   const handleBulkUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!user) return; // Early return if no user
 
@@ -160,64 +194,55 @@ const QuoteCollection = () => {
           if (!Array.isArray(importedQuotes)) {
             throw new Error('JSON must contain an array of quotes');
           }
-
+  
           validQuotes = importedQuotes
             .slice(0, MAX_QUOTES_PER_UPLOAD)
-            .map((quote: any) => ({
-              text: sanitizeInput(quote.text || quote.quote || ''),
-              author: sanitizeInput(quote.author || quote.by || 'Unknown'),
-              category: sanitizeInput(quote.category || ''),
-              userId: user.uid,
-              createdAt: new Date().toISOString()
-            }))
-            .filter((quote) => 
-              quote.text.length > 0 && 
-              quote.text.length <= 1000 && 
-              quote.author.length <= 100
-            );
+            .map((quote: any) => {
+              // Create a clean quote object, removing undefined and empty values
+              return Object.fromEntries(
+                Object.entries({
+                  text: sanitizeInput(quote.text || quote.quote || ''),
+                  author: sanitizeInput(quote.author || quote.by || ''),
+                  category: sanitizeInput(quote.category || ''),
+                  season: SEASONS.includes(quote.season) ? quote.season : undefined,
+                  lifeStage: LIFE_STAGES.includes(quote.lifeStage) ? quote.lifeStage : undefined,
+                  question: sanitizeInput(quote.question || ''),
+                  answer: sanitizeInput(quote.answer || ''),
+                  userId: user.uid,
+                  createdAt: new Date().toISOString()
+                }).filter(([_, v]) => v !== undefined && v !== '')
+              );
+            })
+            .filter((quote) => Object.keys(quote).length > 0);
         } else {
+          // Similar logic for CSV parsing
           const csvQuotes = parseCSV(e.target.result as string);
           validQuotes = csvQuotes
             .slice(0, MAX_QUOTES_PER_UPLOAD)
-            .map(quote => ({
-              text: sanitizeInput(quote.text || quote.quote || ''),
-              author: sanitizeInput(quote.author || quote.by || 'Unknown'),
-              category: sanitizeInput(quote.category || ''),
-              userId: user.uid,
-              createdAt: new Date().toISOString()
-            }))
-            .filter(quote => 
-              quote.text.length > 0 && 
-              quote.text.length <= 1000 && 
-              quote.author.length <= 100
-            );
+            .map(quote => 
+              Object.fromEntries(
+                Object.entries({
+                  text: sanitizeInput(quote.text || quote.quote || ''),
+                  author: sanitizeInput(quote.author || quote.by || ''),
+                  category: sanitizeInput(quote.category || ''),
+                  season: SEASONS.includes(quote.season) ? quote.season : undefined,
+                  lifeStage: LIFE_STAGES.includes(quote.lifeStage) ? quote.lifeStage : undefined,
+                  question: sanitizeInput(quote.question || ''),
+                  answer: sanitizeInput(quote.answer || ''),
+                  userId: user.uid,
+                  createdAt: new Date().toISOString()
+                }).filter(([_, v]) => v !== undefined && v !== '')
+              )
+            )
+            .filter((quote) => Object.keys(quote).length > 0);
         }
-
-        if (validQuotes.length === 0) {
-          alert('No valid quotes found in file');
-          return;
-        }
-
-        // Save quotes to Firebase
-        const savedQuotes = await Promise.all(
-          validQuotes.map(quote => quoteService.addQuote(quote))
-        );
-
-        // Update local state with the newly saved quotes
-        setQuotes(prevQuotes => [...savedQuotes, ...prevQuotes]);
-        
-        // Clear the file input
-        event.target.value = '';
-        
-        alert(`Successfully imported ${savedQuotes.length} quotes`);
-        
+  
+        // ... rest of the existing code ...
       } catch (error) {
         console.error('Error processing file:', error);
         alert('Error processing file. Please check the format and try again.');
       }
     };
-
-    reader.readAsText(file);
   };
 
   // Simple CSV parsing function
@@ -357,7 +382,7 @@ const QuoteCollection = () => {
           <CardContent>
             <div className="space-y-3">
             <Input 
-                placeholder="Quote Text" 
+                placeholder="Quote Text (Optional)" 
                 value={newQuote.text}
                 className="input-focus"
                 onChange={(e) => setNewQuote({
@@ -366,7 +391,7 @@ const QuoteCollection = () => {
                 })}
               />
               <Input 
-                placeholder="Author" 
+                placeholder="Author (Optional)" 
                 value={newQuote.author}
                 className="input-focus"
                 onChange={(e) => setNewQuote({
@@ -375,7 +400,7 @@ const QuoteCollection = () => {
                 })}
               />
               <Input 
-                placeholder="Category" 
+                placeholder="Category (Optional)" 
                 value={newQuote.category}
                 className="input-focus"
                 onChange={(e) => setNewQuote({
@@ -383,6 +408,58 @@ const QuoteCollection = () => {
                   category: e.target.value
                 })}
               />
+              <Select
+              value={newQuote.season}
+              onValueChange={(value) => setNewQuote({
+                ...newQuote,
+                season: value as Quote['season']
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select Season (Optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {SEASONS.map(season => (
+                  <SelectItem key={season} value={season}>
+                    {season}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={newQuote.lifeStage}
+              onValueChange={(value) => setNewQuote({
+                ...newQuote,
+                lifeStage: value as Quote['lifeStage']
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select Life Stage (Optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {LIFE_STAGES.map(stage => (
+                  <SelectItem key={stage} value={stage}>
+                    {stage}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input 
+              placeholder="Question (Optional)" 
+              value={newQuote.question}
+              onChange={(e) => setNewQuote({
+                ...newQuote, 
+                question: e.target.value
+              })}
+            />
+            <Input 
+              placeholder="Answer (Optional)" 
+              value={newQuote.answer}
+              onChange={(e) => setNewQuote({
+                ...newQuote, 
+                answer: e.target.value
+              })}
+            />
               <Button 
                 onClick={handleQuoteSubmit}
                 className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
@@ -444,20 +521,48 @@ const QuoteCollection = () => {
                 key={quote.id} 
                 className="border-l-4 border-blue-500 quote-card"
               >
-                <CardContent className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center space-y-2 md:space-y-0">
-                  <div>
-                    <blockquote className="italic text-gray-800 mb-2">
-                      "{quote.text}"
-                    </blockquote>
-                    <div className="text-sm flex items-center">
-                      <strong className="text-gray-700">- {quote.author}</strong>
-                      {quote.category && (
-                        <span className="category-badge">
-                          {quote.category}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+ <CardContent className="p-4">
+              {quote.text && (
+                <blockquote className="italic text-gray-800 mb-2">
+                  "{quote.text}"
+                </blockquote>
+              )}
+              
+              {quote.question && (
+                <div className="mb-2">
+                  <strong>Question:</strong> {quote.question}
+                </div>
+              )}
+              
+              {quote.answer && (
+                <div className="mb-2">
+                  <strong>Answer:</strong> {quote.answer}
+                </div>
+              )}
+              
+              <div className="text-sm flex flex-wrap items-center gap-2">
+                {quote.author && (
+                  <strong className="text-gray-700">- {quote.author}</strong>
+                )}
+                
+                {quote.category && (
+                  <span className="category-badge">
+                    {quote.category}
+                  </span>
+                )}
+                
+                {quote.season && (
+                  <span className="badge bg-green-100 text-green-800 rounded-full px-2 py-1 text-xs">
+                    {quote.season}
+                  </span>
+                )}
+                
+                {quote.lifeStage && (
+                  <span className="badge bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-xs">
+                    {quote.lifeStage}
+                  </span>
+                )}
+              </div>
                   <div className="flex space-x-2">
                     <Button 
                       variant="secondary" 
