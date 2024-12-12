@@ -3,16 +3,21 @@ import { Button } from "./components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card"
 import { Input } from './components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
-import './App.css'
+import { useAuth } from './context/AuthContext';
+import './QuoteCollection.css'
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 const ALLOWED_FILE_TYPES = ['application/json', 'text/csv'];
 const MAX_QUOTES_PER_UPLOAD = 1000;
 
 const QuoteCollection = () => {
-  // Initialize state from localStorage or empty array
-  const [quotes, setQuotes] = useState(() => {
-    const savedQuotes = localStorage.getItem('quotes');
+  const { user, signIn, signOutUser } = useAuth();
+
+
+  // Modify quotes state to be user-specific
+  const [quotes, setQuotes] = useState<Quote[]>(() => {
+    if (!user) return [];
+    const savedQuotes = localStorage.getItem(`quotes_${user.uid}`);
     return savedQuotes ? JSON.parse(savedQuotes) : [];
   });
 
@@ -26,10 +31,12 @@ const QuoteCollection = () => {
   const [editingQuote, setEditingQuote] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-  // Update localStorage whenever quotes change
+  // Update useEffect to be user-specific
   useEffect(() => {
-    localStorage.setItem('quotes', JSON.stringify(quotes));
-  }, [quotes]);
+    if (user) {
+      localStorage.setItem(`quotes_${user.uid}`, JSON.stringify(quotes));
+    }
+  }, [quotes, user]);
 
   // Add or update quote
   const handleQuoteSubmit = () => {
@@ -223,7 +230,7 @@ const QuoteCollection = () => {
     const csvBlob = new Blob([csvSample], { type: 'text/csv' });
     const csvLink = document.createElement('a');
     csvLink.href = URL.createObjectURL(csvBlob);
-    csvLink.download = 'quotes_sample.csv';
+    csvLink.download = 'quote_collection.csv';
 
     // Trigger downloads
     document.body.appendChild(jsonLink);
@@ -243,12 +250,37 @@ const QuoteCollection = () => {
       .slice(0, 1000); // Maximum length
   };
 
+    // Add authentication UI elements
+    if (!user) {
+      return (
+        <div className="container mx-auto max-w-md py-8 text-center">
+          <Card>
+            <CardHeader>
+              <CardTitle>Welcome to Quote Collection</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4">Please sign in to manage your quotes</p>
+              <Button onClick={signIn} className="w-full">
+                Sign in with Google
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8 bg-gray-50 min-h-screen">
       <div className="bg-white shadow-lg rounded-xl overflow-hidden">
         <header className="bg-gradient-to-r from-blue-100 to-purple-100 text-white p-6">
+          <div>
           <h1 className="text-3xl font-extrabold tracking-tight gradient-text">Quote Collection</h1>
           <p className="text-blue-500 mt-2">Collect, manage, and cherish your favorite quotes</p>
+          <p className="text-gray-600">Welcome, {user.displayName}</p>
+          </div>
+          <Button variant="destructive" onClick={signOutUser}>
+            Sign Out
+          </Button>
         </header>
 
         {/* Bulk Upload Section */}

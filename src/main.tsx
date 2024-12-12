@@ -1,10 +1,10 @@
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import QuoteCollection from './App.tsx'
+import QuoteCollection from './QuoteCollection'
+import { AuthProvider } from './context/AuthContext';
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+  <AuthProvider>
     <QuoteCollection />
-  </StrictMode>,
+  </AuthProvider>,
 )
