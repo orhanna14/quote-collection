@@ -68,8 +68,8 @@ import {
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({
             id: doc.id,
-            ...doc.data()
-        } as Quote));
+            ...(doc.data() as Omit<Quote, 'id'>)
+        }));
     }
   
     // Update a quote
