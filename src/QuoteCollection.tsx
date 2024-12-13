@@ -66,36 +66,33 @@ const QuoteCollection = () => {
     const handleQuoteSubmit = async () => {
       if (!user) return;
     
-      // Remove undefined values
-      const cleanQuote = Object.fromEntries(
-        Object.entries({
-          text: newQuote.text,
-          author: newQuote.author,
-          category: newQuote.category,
-          season: newQuote.season,
-          lifeStage: newQuote.lifeStage,
-          question: newQuote.question,
-          answer: newQuote.answer,
-          userId: user.uid,
-          createdAt: new Date().toISOString()
-        }).filter(([_, v]) => v !== undefined && v !== '')
-      );
+      const cleanQuote: Omit<Quote, 'id'> = {
+        text: newQuote.text,
+        author: newQuote.author,
+        category: newQuote.category,
+        season: newQuote.season,
+        lifeStage: newQuote.lifeStage,
+        question: newQuote.question,
+        answer: newQuote.answer,
+        userId: user.uid,
+        createdAt: new Date().toISOString()
+      };
     
-      if (Object.keys(cleanQuote).length > 0) {
+      if (cleanQuote.text || cleanQuote.question) {
         try {
           if (editingQuote) {
             // Update existing quote
             const updatedQuote = await quoteService.updateQuote(editingQuote.id!, cleanQuote);
             
             setQuotes(quotes.map(q => 
-              q.id === editingQuote.id ? updatedQuote : q
+              q.id === editingQuote.id ? { ...q, ...updatedQuote } : q
             ));
             setEditingQuote(null);
           } else {
             // Add new quote
             const addedQuote = await quoteService.addQuote(cleanQuote);
             
-            setQuotes([addedQuote, ...quotes]);
+            setQuotes([{ ...cleanQuote, id: addedQuote.id } as Quote, ...quotes]);
           }
           
           // Reset form
@@ -186,6 +183,11 @@ const QuoteCollection = () => {
       if (!e.target?.result) return;
       
       try {
+        const baseQuote = {
+          userId: user.uid,
+          createdAt: new Date().toISOString()
+        };
+
         let validQuotes;
         if (file.type === 'application/json') {
           const importedQuotes = JSON.parse(e.target.result as string);
@@ -196,46 +198,32 @@ const QuoteCollection = () => {
           }
 
           validQuotes = importedQuotes
-          .slice(0, MAX_QUOTES_PER_UPLOAD)
-          .map((quote: any) => {
-            // Create a clean quote object, removing undefined and empty values
-            return Object.fromEntries(
-              Object.entries({
-                text: sanitizeInput(quote.text || quote.quote || ''),
-                author: sanitizeInput(quote.author || quote.by || ''),
-                category: sanitizeInput(quote.category || ''),
-                season: SEASONS.includes(quote.season) ? quote.season : undefined,
-                lifeStage: LIFE_STAGES.includes(quote.lifeStage) ? quote.lifeStage : undefined,
-                question: sanitizeInput(quote.question || ''),
-                answer: sanitizeInput(quote.answer || ''),
-                userId: user.uid,
-                createdAt: new Date().toISOString()
-              }).filter(([_, v]) => v !== undefined && v !== '')
-            );
-          })
-          .filter((quote) => Object.keys(quote).length > 0);
-      } else {
-        // Similar logic for CSV parsing
-        const csvQuotes = parseCSV(e.target.result as string);
-        validQuotes = csvQuotes
-          .slice(0, MAX_QUOTES_PER_UPLOAD)
-          .map(quote => 
-            Object.fromEntries(
-              Object.entries({
-                text: sanitizeInput(quote.text || quote.quote || ''),
-                author: sanitizeInput(quote.author || quote.by || ''),
-                category: sanitizeInput(quote.category || ''),
-                season: SEASONS.includes(quote.season) ? quote.season : undefined,
-                lifeStage: LIFE_STAGES.includes(quote.lifeStage) ? quote.lifeStage : undefined,
-                question: sanitizeInput(quote.question || ''),
-                answer: sanitizeInput(quote.answer || ''),
-                userId: user.uid,
-                createdAt: new Date().toISOString()
-              }).filter(([_, v]) => v !== undefined && v !== '')
-            )
-          )
-          .filter((quote) => Object.keys(quote).length > 0);
-      }
+            .slice(0, MAX_QUOTES_PER_UPLOAD)
+            .map((quote: any) => ({
+              ...baseQuote,
+              text: sanitizeInput(quote.text || quote.quote || ''),
+              author: sanitizeInput(quote.author || quote.by || ''),
+              category: sanitizeInput(quote.category || ''),
+              season: SEASONS.includes(quote.season) ? quote.season : undefined,
+              lifeStage: LIFE_STAGES.includes(quote.lifeStage) ? quote.lifeStage : undefined,
+              question: sanitizeInput(quote.question || ''),
+              answer: sanitizeInput(quote.answer || '')
+            }));
+        } else {
+          const csvQuotes = parseCSV(e.target.result as string);
+          validQuotes = csvQuotes
+            .slice(0, MAX_QUOTES_PER_UPLOAD)
+            .map(quote => ({
+              ...baseQuote,
+              text: sanitizeInput(quote.text || quote.quote || ''),
+              author: sanitizeInput(quote.author || quote.by || ''),
+              category: sanitizeInput(quote.category || ''),
+              season: SEASONS.includes(quote.season) ? quote.season : undefined,
+              lifeStage: LIFE_STAGES.includes(quote.lifeStage) ? quote.lifeStage : undefined,
+              question: sanitizeInput(quote.question || ''),
+              answer: sanitizeInput(quote.answer || '')
+            }));
+        }
 
         if (validQuotes.length === 0) {
           alert('No valid quotes found in file');
@@ -491,7 +479,17 @@ const QuoteCollection = () => {
                   className="w-full mt-2"
                   onClick={() => {
                     setEditingQuote(null);
-                    setNewQuote({ text: '', author: '', category: '', id: null });
+                    setNewQuote({
+                      text: '',
+                      author: '',
+                      category: '',
+                      season: undefined,
+                      lifeStage: undefined,
+                      question: '',
+                      answer: '',
+                      userId: '',
+                      createdAt: ''
+                    });
                   }}
                 >
                   Cancel Editing
@@ -518,7 +516,7 @@ const QuoteCollection = () => {
               </SelectTrigger>
               <SelectContent>
                 {categories.map(category => (
-                  <SelectItem key={category} value={category}>
+                  <SelectItem key={category} value={category ?? ''}>
                     {category}
                   </SelectItem>
                 ))}
@@ -595,7 +593,7 @@ const QuoteCollection = () => {
                       variant="destructive" 
                       size="sm"
                       className="delete-button mt-2 md:mt-0 self-start md:self-auto"
-                      onClick={() => deleteQuote(quote.id)}
+                      onClick={() => deleteQuote(quote.id ? quote.id : '')}
                     >
                       Delete
                     </Button>

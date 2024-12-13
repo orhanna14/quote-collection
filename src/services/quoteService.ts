@@ -41,15 +41,13 @@ import {
   
     async addQuote(quoteData: Omit<Quote, 'id'>) {
         try {
-            // Sanitize data: Remove any undefined or empty string fields
+            // Remove undefined values before sending to Firestore
             const cleanData = Object.fromEntries(
-                Object.entries(quoteData).filter(([_, v]) => 
-                    v !== undefined && v !== ''
-                )
+                Object.entries(quoteData).filter(([_, v]) => v !== undefined)
             );
 
             const docRef = await addDoc(this.quotesRef, cleanData);
-            return { ...cleanData, id: docRef.id };
+            return { ...quoteData, id: docRef.id } as Quote;
         } catch (error) {
             console.error("Error adding quote:", error);
             throw error;
