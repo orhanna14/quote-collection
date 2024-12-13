@@ -194,55 +194,74 @@ const QuoteCollection = () => {
           if (!Array.isArray(importedQuotes)) {
             throw new Error('JSON must contain an array of quotes');
           }
-  
+
           validQuotes = importedQuotes
-            .slice(0, MAX_QUOTES_PER_UPLOAD)
-            .map((quote: any) => {
-              // Create a clean quote object, removing undefined and empty values
-              return Object.fromEntries(
-                Object.entries({
-                  text: sanitizeInput(quote.text || quote.quote || ''),
-                  author: sanitizeInput(quote.author || quote.by || ''),
-                  category: sanitizeInput(quote.category || ''),
-                  season: SEASONS.includes(quote.season) ? quote.season : undefined,
-                  lifeStage: LIFE_STAGES.includes(quote.lifeStage) ? quote.lifeStage : undefined,
-                  question: sanitizeInput(quote.question || ''),
-                  answer: sanitizeInput(quote.answer || ''),
-                  userId: user.uid,
-                  createdAt: new Date().toISOString()
-                }).filter(([_, v]) => v !== undefined && v !== '')
-              );
-            })
-            .filter((quote) => Object.keys(quote).length > 0);
-        } else {
-          // Similar logic for CSV parsing
-          const csvQuotes = parseCSV(e.target.result as string);
-          validQuotes = csvQuotes
-            .slice(0, MAX_QUOTES_PER_UPLOAD)
-            .map(quote => 
-              Object.fromEntries(
-                Object.entries({
-                  text: sanitizeInput(quote.text || quote.quote || ''),
-                  author: sanitizeInput(quote.author || quote.by || ''),
-                  category: sanitizeInput(quote.category || ''),
-                  season: SEASONS.includes(quote.season) ? quote.season : undefined,
-                  lifeStage: LIFE_STAGES.includes(quote.lifeStage) ? quote.lifeStage : undefined,
-                  question: sanitizeInput(quote.question || ''),
-                  answer: sanitizeInput(quote.answer || ''),
-                  userId: user.uid,
-                  createdAt: new Date().toISOString()
-                }).filter(([_, v]) => v !== undefined && v !== '')
-              )
+          .slice(0, MAX_QUOTES_PER_UPLOAD)
+          .map((quote: any) => {
+            // Create a clean quote object, removing undefined and empty values
+            return Object.fromEntries(
+              Object.entries({
+                text: sanitizeInput(quote.text || quote.quote || ''),
+                author: sanitizeInput(quote.author || quote.by || ''),
+                category: sanitizeInput(quote.category || ''),
+                season: SEASONS.includes(quote.season) ? quote.season : undefined,
+                lifeStage: LIFE_STAGES.includes(quote.lifeStage) ? quote.lifeStage : undefined,
+                question: sanitizeInput(quote.question || ''),
+                answer: sanitizeInput(quote.answer || ''),
+                userId: user.uid,
+                createdAt: new Date().toISOString()
+              }).filter(([_, v]) => v !== undefined && v !== '')
+            );
+          })
+          .filter((quote) => Object.keys(quote).length > 0);
+      } else {
+        // Similar logic for CSV parsing
+        const csvQuotes = parseCSV(e.target.result as string);
+        validQuotes = csvQuotes
+          .slice(0, MAX_QUOTES_PER_UPLOAD)
+          .map(quote => 
+            Object.fromEntries(
+              Object.entries({
+                text: sanitizeInput(quote.text || quote.quote || ''),
+                author: sanitizeInput(quote.author || quote.by || ''),
+                category: sanitizeInput(quote.category || ''),
+                season: SEASONS.includes(quote.season) ? quote.season : undefined,
+                lifeStage: LIFE_STAGES.includes(quote.lifeStage) ? quote.lifeStage : undefined,
+                question: sanitizeInput(quote.question || ''),
+                answer: sanitizeInput(quote.answer || ''),
+                userId: user.uid,
+                createdAt: new Date().toISOString()
+              }).filter(([_, v]) => v !== undefined && v !== '')
             )
-            .filter((quote) => Object.keys(quote).length > 0);
+          )
+          .filter((quote) => Object.keys(quote).length > 0);
+      }
+
+        if (validQuotes.length === 0) {
+          alert('No valid quotes found in file');
+          return;
         }
-  
-        // ... rest of the existing code ...
+
+        // Save quotes to Firebase
+        const savedQuotes = await Promise.all(
+          validQuotes.map(quote => quoteService.addQuote(quote))
+        );
+
+        // Update local state with the newly saved quotes
+        setQuotes(prevQuotes => [...savedQuotes, ...prevQuotes]);
+        
+        // Clear the file input
+        event.target.value = '';
+        
+        alert(`Successfully imported ${savedQuotes.length} quotes`);
+        
       } catch (error) {
         console.error('Error processing file:', error);
         alert('Error processing file. Please check the format and try again.');
       }
     };
+
+    reader.readAsText(file);
   };
 
   // Simple CSV parsing function
