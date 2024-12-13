@@ -335,7 +335,7 @@ const QuoteCollection = () => {
               <CardTitle>Welcome to Quote Collection</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="mb-4">Please sign in to manage your quotes</p>
+              <p className="mb-4">Please sign in to manage your your favorite quotes, or quotes related to life's questions, where you can filter by category, or life stage, (aka season).</p>
               <Button onClick={signIn} className="w-full">
                 Sign in with Google
               </Button>
@@ -350,7 +350,7 @@ const QuoteCollection = () => {
       <div className="bg-white shadow-lg rounded-xl overflow-hidden">
         <header className="bg-gradient-to-r from-blue-100 to-purple-100 text-white p-6">
           <h1 className="text-3xl font-extrabold tracking-tight gradient-text">Quote Collection</h1>
-          <p className="text-blue-500 mt-2">Collect, manage, and cherish your favorite quotes</p>
+          <p className="text-blue-500 mt-2">Collect, manage, and cherish your favorite quotes, or quotes related to life's questions</p>
           <p className="text-gray-600">Welcome, {user.displayName}</p>
           <Button variant="destructive" onClick={signOutUser}>
             Sign Out

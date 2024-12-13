@@ -8,5 +8,26 @@
     "text": "To be or not to be, that is the question.",
     "author": "William Shakespeare",
     "category": "Literature"
+  },
+  {
+    "season": "Winter",
+    "lifeStage": "Senior Years (65+ years)",
+    "category": "Existence",
+    "question": "Where do we go when we die?",
+    "answer": "Resurrection means that after the sleep of death, you awaken in a beautiful world far beyond human comprehension."
+  },
+  {
+    "season": "Winter",
+    "lifeStage": "Senior Years (65+ years)",
+    "category": "Philosophy",
+    "question": "What is the meaning of life?",
+    "answer": "The meaning of life can vary from person to person. Some find meaning in relationships, others in achievements, and some in a spiritual connection."
+  },
+  {
+    "season": "Winter",
+    "lifeStage": "Senior Years (65+ years)",
+    "category": "Truth",
+    "question": "When is it ok to lie?",
+    "answer": "Speak the truth, at least try not to lie. Truth has no special time of its own. Its hour is now. Wherever the truth is injured, defend it."
   }
 ]
