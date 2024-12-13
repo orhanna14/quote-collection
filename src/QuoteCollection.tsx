@@ -150,10 +150,12 @@ const QuoteCollection = () => {
 
   // Filter quotes by category
   const filteredQuotes = useMemo(() => {
-    return selectedCategory === 'All' 
-      ? quotes 
-      : quotes.filter(quote => quote.category === selectedCategory);
-  }, [quotes, selectedCategory]);
+    return quotes.filter(quote => {
+      const matchesCategory = selectedCategory === 'All' || quote.category === selectedCategory;
+      const matchesLifeStage = !newQuote.lifeStage || quote.lifeStage === newQuote.lifeStage;
+      return matchesCategory && matchesLifeStage;
+    });
+  }, [quotes, selectedCategory, newQuote.lifeStage]);
 
   const handleBulkUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!user) return; // Early return if no user
@@ -503,7 +505,7 @@ const QuoteCollection = () => {
         <Card className="m-4 border-2 border-gray-100 shadow-sm quote-card">
           <CardHeader className="bg-gray-50">
             <CardTitle className="text-xl font-semibold text-gray-700">
-              Filter by Category
+              Filter by Category and Life Stage
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -518,6 +520,26 @@ const QuoteCollection = () => {
                 {categories.map(category => (
                   <SelectItem key={category} value={category ?? ''}>
                     {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={newQuote.lifeStage || undefined}
+              onValueChange={(value) => setNewQuote({
+                ...newQuote,
+                lifeStage: value === '' ? undefined : value as Quote['lifeStage']
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a life stage" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={undefined}>All Life Stages</SelectItem>
+                {LIFE_STAGES.map(stage => (
+                  <SelectItem key={stage} value={stage}>
+                    {stage}
                   </SelectItem>
                 ))}
               </SelectContent>
